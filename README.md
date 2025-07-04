@@ -1,84 +1,129 @@
-### **User Guide: Lamzu HID Mouse Polling Rate Automator**
+# Lamzu HID Mouse Polling Rate Automator
 
-This project contains a set of scripts to automate a mouse's polling rate, switching to a higher rate when a game is launched and reverting to a standard rate when it's closed.
+Automatically adjusts mouse polling rate based on running applications. Switches to high-performance mode when games are detected and reverts to standard mode when games are closed.
 
-### **What Does a New User Need to Change?**
+## Features
 
-Before running the project, a new user will need to check and possibly change three key things:
+- **Automatic Detection**: Monitors running processes and adjusts polling rate accordingly
+- **Game-Specific Configuration**: Customizable game process detection
+- **Configurable Rates**: Set custom polling rates for gaming and standard use
+- **Background Operation**: Runs silently in the background
+- **HID Direct Communication**: Direct hardware communication without requiring manufacturer software
 
-1.  **Mouse Information (File: `set-rate.ts`)**:
+## Requirements
 
-      * `VENDOR_ID`: The manufacturer ID of the mouse.
-      * `PRODUCT_ID`: The specific model ID of the mouse.
-      * `INTERFACE_NUMBER`: The communication "channel" for configuration.
-      * **How to find these?**: If the user has a different mouse model, the `VENDOR_ID`, `PRODUCT_ID`, and `INTERFACE_NUMBER` will be different.
-        * You can find these values in the web app: https://www.lamzu.net/#/project/items and get the json on Local Storage. Just paste it on AI and ask for the values.
+- **Node.js**: LTS version (v20.x recommended)
+- **Administrator Privileges**: Required for HID device access
+- **Compatible Mouse**: Currently configured for Lamzu mice (configurable for other models)
 
-2.  **Games List (File: `watcher.ts`)**:
+## Installation
 
-      * The `GAMES_LIST` array contains the process names of your games. The new user must edit this list and add the executables for **their** games.
-      * **How to find these?**: Open the Task Manager (Ctrl+Shift+Esc), go to the "Details" tab, find the game's process, and note the name in the "Name" column.
+1. Clone or download the project
+2. Open terminal as Administrator in the project directory
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-3.  **Polling Rates (File: `watcher.ts`)**:
+## Configuration
 
-      * The constants `GAME_POLLING_RATE` and `DEFAULT_POLLING_RATE` are set to 2000 and 1000, respectively. The user can adjust these values to their preference (e.g., 4000 for gaming, 500 for standard use).
+### Mouse Settings
 
------
+Configure your mouse parameters in `set-rate.ts`:
 
-### **Full Installation and Setup Guide**
+```typescript
+const VENDOR_ID = 14142;        // Mouse manufacturer ID
+const PRODUCT_ID = 30;          // Mouse model ID
+const INTERFACE_NUMBER = 2;     // HID interface number
+```
 
-Here are the complete, step-by-step instructions for a new user to set up the project from scratch.
+**Finding Your Mouse Parameters:**
+- Visit https://www.lamzu.net/#/project/items
+- Check Local Storage for device JSON data
+- Extract `VENDOR_ID`, `PRODUCT_ID`, and `INTERFACE_NUMBER` values
+  - Tip: Paste the JSON on AI and ask for the values
 
-#### **1. Prerequisites**
+### Game Detection
 
-  * **Node.js**: You must have Node.js installed. The latest LTS version is recommended (e.g., v20.x), as newer versions may have compatibility issues with native modules.
-  * **Mouse Software**: The official mouse configuration software/website must be closed to prevent hardware access conflicts.
+Edit the games list in `watcher.ts`:
 
-#### **2. Installation**
+```typescript
+const GAMES_LIST = [
+  "cs2.exe",           // Counter-Strike 2
+  "r5apex_dx12.exe",   // Apex Legends
+  "dota2.exe",         // Dota 2
+];
+```
 
-1.  Download and unzip the project folder.
-2.  Open a terminal (PowerShell or CMD) **as an Administrator** inside the project folder.
-3.  Run the following command to install all the necessary dependencies:
-    ```powershell
-    npm install
-    ```
+**Finding Process Names:**
+1. Open Task Manager (`Ctrl+Shift+Esc`)
+2. Go to **Details** tab
+3. Launch your game
+4. Note the process name in the **Name** column
 
-#### **3. Configuration**
+### Polling Rates
 
-1.  Open the `set-rate.ts` file and, if necessary, adjust the `VENDOR_ID`, `PRODUCT_ID`, and `INTERFACE_NUMBER` values for the target mouse.
-2.  Open the `watcher.ts` file and customize the `GAMES_LIST` with the process names of your games. Also, adjust `GAME_POLLING_RATE` and `DEFAULT_POLLING_RATE` if desired.
+Adjust polling rates in `watcher.ts`:
 
-#### **4. Compiling and Running**
+```typescript
+const GAME_POLLING_RATE = 2000;     // Gaming mode (Hz)
+const DEFAULT_POLLING_RATE = 1000;  // Standard mode (Hz)
+```
 
-1.  **Compile the code**: In your Administrator terminal, run the command to compile the TypeScript files into JavaScript:
+**Supported Rates:** 500, 1000, 2000, 4000, 8000 Hz
 
-    ```powershell
-    npx tsc
-    ```
+## Usage
 
-    This will create a `dist` folder containing the `set-rate.js` and `watcher.js` files.
+1. **Compile the project:**
+   ```bash
+   npx tsc
+   ```
 
-2.  **Start the watcher**: To begin the automation, execute the watcher script:
+2. **Start the watcher:**
+   ```bash
+   node dist/watcher.js
+   ```
 
-    ```powershell
-    node dist/watcher.js
-    ```
+3. **Manual polling rate change:**
+   ```bash
+   node dist/set-rate.js <rate>
+   ```
+   Example: `node dist/set-rate.js 8000`
 
-    The script will now start monitoring your running processes. You can leave this terminal open in the background.
+## Production Deployment
 
-#### **5. (Optional) Permanent Execution with PM2**
+For automatic startup and background operation, use PM2:
 
-To have the script start automatically with your computer and run invisibly in the background, you can use PM2.
+```bash
+# Install PM2 globally
+npm install pm2 -g
 
-1.  Install PM2 globally: `npm install pm2 -g`
-2.  Start the script with PM2: `pm2 start dist/watcher.js --name mouse-watcher`
-3.  Set PM2 to launch on startup: `pm2 startup`
-4.  Save the current process list: `pm2 save`
+# Start the service
+pm2 start dist/watcher.js --name mouse-watcher
 
------
+# Enable startup on boot
+pm2 startup
 
-### **Troubleshooting**
+# Save current configuration
+pm2 save
+```
 
-  * **"Device not found" error**: Check that the `VENDOR_ID`, `PRODUCT_ID`, and `INTERFACE_NUMBER` in `set-rate.ts` are correct for your mouse.
-  * **"could not send feature report" error**: The `INTERFACE_NUMBER` is incorrect for *writing* commands. Try other values (0, 1, 2, etc.).
-  * **Polling rate doesn't change (despite a success message)**: The command is being sent, but the firmware is ignoring it. This means the command `payload` (the sequence of bytes) or the values in the `POLLING_RATE_MAP` are incorrect for your specific mouse model. This would require a new investigation into the device's protocol.
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| **Device not found** | Verify `VENDOR_ID`, `PRODUCT_ID`, and `INTERFACE_NUMBER` in `set-rate.ts` |
+| **Could not send feature report** | Try different `INTERFACE_NUMBER` values (0, 1, 2, etc.) |
+| **Polling rate unchanged** | Command payload or `POLLING_RATE_MAP` values may be incorrect for your mouse model |
+| **Permission denied** | Run terminal as Administrator |
+| **Module not found** | Ensure all dependencies are installed with `npm install` |
+
+## Technical Notes
+
+- Close manufacturer software before running to prevent hardware access conflicts
+- The application uses direct HID communication for optimal performance
+- Process checking interval is configurable via `CHECK_INTERVAL_MS` (default: 5 seconds)
+
+## License
+
+This project is provided as-is for educational and personal use.
