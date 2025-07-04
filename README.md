@@ -1,7 +1,3 @@
-Of course. Here is the complete documentation translated into English.
-
------
-
 ### **User Guide: Lamzu HID Mouse Polling Rate Automator**
 
 This project contains a set of scripts to automate a mouse's polling rate, switching to a higher rate when a game is launched and reverting to a standard rate when it's closed.
