@@ -343,8 +343,8 @@ app.whenReady().then(async () => {
   }
 });
 
-app.on("window-all-closed", (event: Event) => {
-  event.preventDefault();
+app.on("window-all-closed", () => {
+  // Prevent app from quitting when all windows are closed (keep running in tray)
 });
 
 app.on("before-quit", () => {

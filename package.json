@@ -1,15 +1,73 @@
 {
   "name": "lamzu-automator",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
+  "description": "Automatically adjusts mouse polling rate based on running applications",
+  "main": "dist/electron-main.js",
+  "homepage": "./",
+  "author": "Miguel Machado",
   "license": "ISC",
   "type": "commonjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "start": "npm run build && electron .",
+    "start-electron": "npm run build && electron .",
+    "start-cli": "npm run build && node dist/watcher.js",
+    "dev": "tsc --watch",
+    "build-electron": "npm run build && electron-builder",
+    "build-electron-win": "npm run build && electron-builder --win",
+    "dist": "npm run build && electron-builder --publish=never",
+    "pack": "npm run build && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.lamzu.automator",
+    "productName": "Lamzu Mouse Automator",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "ui/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Lamzu Mouse Automator",
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
+  },
   "dependencies": {
     "node-hid": "^3.2.0",
     "ps-list": "^8.1.1",
@@ -18,6 +76,8 @@
   "devDependencies": {
     "@types/node": "^24.0.10",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "electron-builder": "^26.0.12",
+    "electron": "^32.2.6"
   }
 }

@@ -3,11 +3,16 @@
     "target": "es2020",
     "module": "commonjs",
     "outDir": "./dist",
+    "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": false
   },
-  "include": ["set-rate.ts", "watcher.ts", "electron-main.ts", "core/**/*"]
+  "include": ["set-rate.ts", "watcher.ts", "electron-main.ts", "core/**/*"],
+  "exclude": ["node_modules", "dist", "dist-electron"]
 }
