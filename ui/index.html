@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lamzu Mouse Automator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .section:last-child {
+            border-bottom: none;
+        }
+        .status-display {
+            padding: 15px;
+            border-radius: 6px;
+            background: #f8f9fa;
+            border-left: 4px solid #007acc;
+            font-weight: 500;
+        }
+        .status-display.gaming {
+            background: #e8f5e8;
+            border-left-color: #28a745;
+        }
+        .status-display.manual {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+        }
+        .game-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .game-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .game-item:last-child {
+            border-bottom: none;
+        }
+        input, select, textarea {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        button.secondary {
+            background: #6c757d;
+        }
+        button.secondary:hover {
+            background: #545b62;
+        }
+        button.danger {
+            background: #dc3545;
+        }
+        button.danger:hover {
+            background: #c82333;
+        }
+        button.small {
+            padding: 4px 8px;
+            font-size: 12px;
+            margin: 0 0 0 10px;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .control-group label {
+            min-width: 150px;
+            margin-right: 10px;
+        }
+        .manual-controls {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        .settings-info {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #0066cc;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+        .export-import {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖱️ Lamzu Mouse Automator</h1>
+
+        <div class="section">
+            <h3>Current Status</h3>
+            <div id="status" class="status-display">Initializing...</div>
+            <div class="manual-controls">
+                <h4>Manual Control</h4>
+                <div class="control-group">
+                    <label>Set Rate:</label>
+                    <select id="manualRate">
+                        <option value="500">500 Hz</option>
+                        <option value="1000">1000 Hz</option>
+                        <option value="2000">2000 Hz</option>
+                        <option value="4000">4000 Hz</option>
+                        <option value="8000">8000 Hz</option>
+                    </select>
+                    <button onclick="setManualRate()">Apply</button>
+                </div>
+                <div class="control-group">
+                    <button id="autoModeBtn" onclick="toggleAutoMode()">Toggle Auto Mode</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Game Detection</h3>
+            <div class="game-list" id="gamesList">
+                <!-- Games will be loaded here -->
+            </div>
+            <div class="control-group">
+                <input type="text" id="newGame" placeholder="Add new game process (e.g., game.exe)">
+                <button onclick="addGame()">Add Game</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Polling Rates</h3>
+            <div class="control-group">
+                <label>Gaming Mode:</label>
+                <select id="gameRate">
+                    <option value="500">500 Hz</option>
+                    <option value="1000">1000 Hz</option>
+                    <option value="2000">2000 Hz</option>
+                    <option value="4000">4000 Hz</option>
+                    <option value="8000">8000 Hz</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Normal Mode:</label>
+                <select id="normalRate">
+                    <option value="500">500 Hz</option>
+                    <option value="1000">1000 Hz</option>
+                    <option value="2000">2000 Hz</option>
+                    <option value="4000">4000 Hz</option>
+                    <option value="8000">8000 Hz</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Check Interval:</label>
+                <select id="checkInterval">
+                    <option value="2000">2 seconds</option>
+                    <option value="5000">5 seconds</option>
+                    <option value="10000">10 seconds</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>General Settings</h3>
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableNotifications">
+                <label for="enableNotifications">Enable notifications</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="startMinimized">
+                <label for="startMinimized">Start minimized to tray</label>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Backup & Restore</h3>
+            <div class="export-import">
+                <div class="control-group">
+                    <button onclick="exportSettings()">Export Settings</button>
+                    <button onclick="importSettings()">Import Settings</button>
+                    <button class="danger" onclick="resetSettings()">Reset to Defaults</button>
+                </div>
+                <textarea id="settingsJson" placeholder="Paste settings JSON here to import..."></textarea>
+                <div class="settings-info" id="settingsPath">
+                    Settings saved to: Loading...
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px;">
+            <button onclick="saveAllSettings()">💾 Save All Settings</button>
+            <button class="secondary" onclick="window.close()">Close to Tray</button>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        let currentSettings = null;
+
+        // Initialize UI
+        async function initializeUI() {
+            try {
+                currentSettings = await ipcRenderer.invoke('get-settings');
+                loadSettingsToUI(currentSettings);
+                updateStatus();
+
+                // Get settings file path
+                const settingsPath = await ipcRenderer.invoke('get-settings-path');
+                document.getElementById('settingsPath').textContent = `Settings saved to: ${settingsPath}`;
+            } catch (error) {
+                console.error('Failed to initialize UI:', error);
+            }
+        }
+
+        // Listen for updates from main process
+        ipcRenderer.on('status-update', (event, status) => {
+            updateStatusDisplay(status);
+        });
+
+        ipcRenderer.on('settings-update', (event, settings) => {
+            currentSettings = settings;
+            loadSettingsToUI(settings);
+        });
+
+        function loadSettingsToUI(settings) {
+            document.getElementById('gameRate').value = settings.gamePollingRate;
+            document.getElementById('normalRate').value = settings.defaultPollingRate;
+            document.getElementById('checkInterval').value = settings.checkIntervalMs;
+            document.getElementById('enableNotifications').checked = settings.enableNotifications;
+            document.getElementById('startMinimized').checked = settings.startMinimized;
+
+            updateGamesList(settings.gamesList);
+        }
+
+        function updateGamesList(gamesList) {
+            const gamesListDiv = document.getElementById('gamesList');
+            gamesListDiv.innerHTML = '';
+
+            gamesList.forEach((game) => {
+                const div = document.createElement('div');
+                div.className = 'game-item';
+                div.innerHTML = `
+                    <span>${game}</span>
+                    <button class="danger small" onclick="removeGame('${game}')">Remove</button>
+                `;
+                gamesListDiv.appendChild(div);
+            });
+        }
+
+        async function addGame() {
+            const input = document.getElementById('newGame');
+            const newGame = input.value.trim();
+
+            if (newGame && !currentSettings.gamesList.includes(newGame)) {
+                try {
+                    await ipcRenderer.invoke('add-game', newGame);
+                    input.value = '';
+                } catch (error) {
+                    console.error('Failed to add game:', error);
+                    alert('Failed to add game');
+                }
+            }
+        }
+
+        async function removeGame(gameName) {
+            try {
+                await ipcRenderer.invoke('remove-game', gameName);
+            } catch (error) {
+                console.error('Failed to remove game:', error);
+                alert('Failed to remove game');
+            }
+        }
+
+        async function updateStatus() {
+            try {
+                const status = await ipcRenderer.invoke('get-current-status');
+                updateStatusDisplay(status);
+            } catch (error) {
+                console.error('Failed to get status:', error);
+            }
+        }
+
+        function updateStatusDisplay(status) {
+            const statusDiv = document.getElementById('status');
+            const autoModeBtn = document.getElementById('autoModeBtn');
+
+            let modeText, className;
+
+            if (!status.isAutoMode) {
+                modeText = `Manual Mode - ${status.currentRate}Hz`;
+                className = 'manual';
+                autoModeBtn.textContent = 'Enable Auto Mode';
+            } else if (status.isGameRunning) {
+                modeText = `Gaming Mode - ${status.currentRate}Hz (Auto)`;
+                className = 'gaming';
+                autoModeBtn.textContent = 'Disable Auto Mode';
+            } else {
+                modeText = `Normal Mode - ${status.currentRate}Hz (Auto)`;
+                className = '';
+                autoModeBtn.textContent = 'Disable Auto Mode';
+            }
+
+            statusDiv.textContent = modeText;
+            statusDiv.className = `status-display ${className}`;
+        }
+
+        async function setManualRate() {
+            const rate = parseInt(document.getElementById('manualRate').value);
+            try {
+                await ipcRenderer.invoke('set-manual-rate', rate);
+                updateStatus();
+            } catch (error) {
+                console.error('Failed to set manual rate:', error);
+                alert('Failed to set polling rate. Make sure the application is running as administrator.');
+            }
+        }
+
+        async function toggleAutoMode() {
+            try {
+                await ipcRenderer.invoke('toggle-auto-mode');
+                updateStatus();
+            } catch (error) {
+                console.error('Failed to toggle auto mode:', error);
+            }
+        }
+
+        async function saveAllSettings() {
+            try {
+                const newSettings = {
+                    gamePollingRate: parseInt(document.getElementById('gameRate').value),
+                    defaultPollingRate: parseInt(document.getElementById('normalRate').value),
+                    checkIntervalMs: parseInt(document.getElementById('checkInterval').value),
+                    enableNotifications: document.getElementById('enableNotifications').checked,
+                    startMinimized: document.getElementById('startMinimized').checked
+                };
+
+                await ipcRenderer.invoke('update-settings', newSettings);
+                alert('✅ Settings saved successfully!');
+            } catch (error) {
+                console.error('Failed to save settings:', error);
+                alert('❌ Failed to save settings');
+            }
+        }
+
+        async function exportSettings() {
+            try {
+                const settingsJson = await ipcRenderer.invoke('export-settings');
+                document.getElementById('settingsJson').value = settingsJson;
+
+                // Copy to clipboard
+                navigator.clipboard.writeText(settingsJson).then(() => {
+                    alert('✅ Settings exported and copied to clipboard!');
+                }).catch(() => {
+                    alert('✅ Settings exported! You can copy them from the text area below.');
+                });
+            } catch (error) {
+                console.error('Failed to export settings:', error);
+                alert('❌ Failed to export settings');
+            }
+        }
+
+        async function importSettings() {
+            try {
+                const settingsJson = document.getElementById('settingsJson').value.trim();
+
+                if (!settingsJson) {
+                    alert('Please paste settings JSON in the text area first');
+                    return;
+                }
+
+                const result = await ipcRenderer.invoke('import-settings', settingsJson);
+
+                if (result.success) {
+                    alert('✅ Settings imported successfully!');
+                    document.getElementById('settingsJson').value = '';
+                } else {
+                    alert('❌ Failed to import settings: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Failed to import settings:', error);
+                alert('❌ Failed to import settings');
+            }
+        }
+
+        async function resetSettings() {
+            if (confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
+                try {
+                    await ipcRenderer.invoke('reset-settings');
+                    alert('✅ Settings reset to defaults!');
+                } catch (error) {
+                    console.error('Failed to reset settings:', error);
+                    alert('❌ Failed to reset settings');
+                }
+            }
+        }
+
+        // Add Enter key support for adding games
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeUI();
+
+            document.getElementById('newGame').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    addGame();
+                }
+            });
+        });
+
+        // Update status every 3 seconds
+        setInterval(updateStatus, 3000);
+    </script>
+</body>
+</html>

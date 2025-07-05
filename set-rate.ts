@@ -15,11 +15,11 @@ const POLLING_RATE_MAP: { [key: string]: number } = {
 function setPollingRate(rate: string | number) {
   const rateValue = POLLING_RATE_MAP[rate.toString()];
   if (rateValue === undefined) {
-    console.error(`❌ Invalid Polling Rate: ${rate}.`);
+    console.error(`Invalid Polling Rate: ${rate}.`);
     return;
   }
 
-  console.log(`🔎 Searching for device on Interface ${INTERFACE_NUMBER}...`);
+  console.log(`Searching for device on Interface ${INTERFACE_NUMBER}...`);
   let device: HID | null = null;
   try {
     const deviceInfo = devices().find(
@@ -33,7 +33,7 @@ function setPollingRate(rate: string | number) {
       throw new Error("Device not found.");
     }
 
-    console.log(`✅ Device found: ${deviceInfo.product}`);
+    console.log(`Device found: ${deviceInfo.product}`);
     device = new HID(deviceInfo.path);
 
     const command = new Array(65).fill(0);
@@ -48,14 +48,14 @@ function setPollingRate(rate: string | number) {
 
     device.sendFeatureReport(command);
     console.log(
-      `🚀 Command sent to set Polling Rate to ${rate}Hz (value: ${rateValue}).`
+      `Command sent to set Polling Rate to ${rate}Hz (value: ${rateValue}).`
     );
   } catch (err) {
-    console.error("❗ An error occurred:", err);
+    console.error("An error occurred:", err);
   } finally {
     if (device) {
       device.close();
-      console.log("🛑 Connection closed.");
+      console.log("Connection closed.");
     }
   }
 }
