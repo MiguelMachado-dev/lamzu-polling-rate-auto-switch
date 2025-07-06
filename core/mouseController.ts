@@ -1,5 +1,6 @@
 import { HID, devices, Device } from "node-hid";
 import { BatteryMonitor, BatteryInfo } from "./batteryMonitor.js";
+import { logHID, logPolling, logError, logDebug } from "./utils/logger.js";
 
 const VENDOR_ID = 14142;
 const PRODUCT_ID = 30;
@@ -49,7 +50,7 @@ export class MouseController {
         command[7 + 1] = rateValue;
 
         device.sendFeatureReport(command);
-        console.log(`Polling Rate set to ${rate}Hz`);
+        logPolling(`Polling Rate set to ${rate}Hz`);
         resolve(true);
       } catch (err) {
         reject(err);
@@ -86,11 +87,11 @@ export class MouseController {
 
       const success = await this.batteryMonitor.startMonitoring();
       if (!success) {
-        console.log("LAMZU battery monitoring not available");
+        logDebug("LAMZU battery monitoring not available");
       }
       return success;
     } catch (error) {
-      console.error("Failed to start LAMZU battery monitoring:", error);
+      logError("Failed to start LAMZU battery monitoring:", error);
       return false;
     }
   }
@@ -142,7 +143,7 @@ export class MouseController {
         isAvailable: false
       };
     } catch (error) {
-      console.error("Error getting battery info:", error);
+      logError("Error getting battery info:", error);
       return null;
     } finally {
       if (device) {
@@ -156,7 +157,7 @@ export class MouseController {
     if (this.batteryMonitor) {
       await this.batteryMonitor.discoverBatteryPattern();
     } else {
-      console.log("Start battery monitoring first to discover patterns");
+      logDebug("Start battery monitoring first to discover patterns");
     }
   }
 
@@ -169,21 +170,21 @@ export class MouseController {
           d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID
       );
 
-      console.log("Available device interfaces:");
+      logHID("Available device interfaces:");
       allDeviceInterfaces.forEach(d => {
-        console.log(`  Interface ${d.interface}: ${d.product || 'Unknown'} - ${d.path}`);
+        logHID(`  Interface ${d.interface}: ${d.product || 'Unknown'} - ${d.path}`);
       });
 
       // Wireless mice typically have multiple HID interfaces
       const hasMultipleInterfaces = allDeviceInterfaces.length > 1;
       
       if (!hasMultipleInterfaces) {
-        console.log("Single interface device - battery monitoring may not be available");
+        logDebug("Single interface device - battery monitoring may not be available");
       }
 
       return allDeviceInterfaces.length > 0; // At least try if device is present
     } catch (error) {
-      console.error("Error checking battery support:", error);
+      logError("Error checking battery support:", error);
       return false;
     }
   }
@@ -196,18 +197,18 @@ export class MouseController {
         d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID
       );
       
-      console.log("\n=== ALL LAMZU DEVICES ===");
+      logHID("\n=== ALL LAMZU DEVICES ===");
       lamzuDevices.forEach(d => {
-        console.log(`Interface ${d.interface}: ${d.product || 'Unknown'}`);
-        console.log(`  VID: ${d.vendorId}, PID: ${d.productId}`);
-        console.log(`  Path: ${d.path}`);
-        console.log(`  Usage: ${d.usage}, UsagePage: ${d.usagePage}`);
-        console.log("---");
+        logHID(`Interface ${d.interface}: ${d.product || 'Unknown'}`);
+        logHID(`  VID: ${d.vendorId}, PID: ${d.productId}`);
+        logHID(`  Path: ${d.path}`);
+        logHID(`  Usage: ${d.usage}, UsagePage: ${d.usagePage}`);
+        logHID("---");
       });
       
       return lamzuDevices;
     } catch (error) {
-      console.error("Error listing devices:", error);
+      logError("Error listing devices:", error);
       return [];
     }
   }

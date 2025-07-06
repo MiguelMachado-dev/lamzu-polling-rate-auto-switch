@@ -1,6 +1,7 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 import { MouseController } from "./mouseController.js";
+import { logGame, logError, logDebug } from "./utils/logger.js";
 
 const execAsync = promisify(exec);
 
@@ -28,7 +29,7 @@ export class GameWatcher {
   }
 
   async start() {
-    console.log("Game watcher started");
+    logGame("Game watcher started");
     this.intervalId = setInterval(
       () => this.checkProcesses(),
       this.config.checkIntervalMs
@@ -76,14 +77,14 @@ export class GameWatcher {
       );
 
       if (gameRunning && !this.isGameRunning) {
-        console.log(
+        logGame(
           `[STATUS] Game detected! Activating mode ${this.config.gamePollingRate}Hz.`
         );
         this.isGameRunning = true;
         await MouseController.setPollingRate(this.config.gamePollingRate);
         this.onStatusChange?.(true, this.config.gamePollingRate);
       } else if (!gameRunning && this.isGameRunning) {
-        console.log(
+        logGame(
           `[STATUS] No game detected. Returning to default mode ${this.config.defaultPollingRate}Hz.`
         );
         this.isGameRunning = false;
@@ -91,7 +92,7 @@ export class GameWatcher {
         this.onStatusChange?.(false, this.config.defaultPollingRate);
       }
     } catch (error) {
-      console.error("Error checking processes:", error);
+      logError("Error checking processes:", error);
     }
   }
 
@@ -100,7 +101,7 @@ export class GameWatcher {
       await MouseController.setPollingRate(rate);
       return true;
     } catch (error) {
-      console.error("Error setting manual rate:", error);
+      logError("Error setting manual rate:", error);
       return false;
     }
   }

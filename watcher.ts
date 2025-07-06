@@ -1,5 +1,6 @@
 import { exec } from "child_process";
 import psList from "ps-list";
+import { simpleLogger } from "./core/utils/simpleLogger.js";
 
 const GAMES_LIST = [
   "cs2.exe", // Counter-Strike 2
@@ -15,18 +16,18 @@ let isGameRunning = false;
 
 function executeCommand(rate: number) {
   const command = `node dist/set-rate.js ${rate}`;
-  console.log(`[LOG] Running: ${command}`);
+  simpleLogger.debug(`[LOG] Running: ${command}`);
 
   exec(command, (error, stdout, stderr) => {
     if (error) {
-      console.error(`[ERROR] Failed to run the script: ${error.message}`);
+      simpleLogger.error(`[ERROR] Failed to run the script: ${error.message}`);
       return;
     }
     if (stderr) {
-      console.error(`[ERROR] The script returned an error: ${stderr}`);
+      simpleLogger.error(`[ERROR] The script returned an error: ${stderr}`);
       return;
     }
-    console.log(`[LOG] Script output: ${stdout.trim()}`);
+    simpleLogger.debug(`[LOG] Script output: ${stdout.trim()}`);
   });
 }
 
@@ -37,13 +38,13 @@ async function checkProcesses() {
   );
 
   if (gameRunning && !isGameRunning) {
-    console.log(
+    simpleLogger.game(
       `[STATUS] Game detected! Activating mode ${GAME_POLLING_RATE}Hz.`
     );
     isGameRunning = true;
     executeCommand(GAME_POLLING_RATE);
   } else if (!gameRunning && isGameRunning) {
-    console.log(
+    simpleLogger.game(
       `[STATUS] No game detected. Returning to default mode ${DEFAULT_POLLING_RATE}Hz.`
     );
     isGameRunning = false;
@@ -51,6 +52,6 @@ async function checkProcesses() {
   }
 }
 
-console.log("✅ Game watcher started. Press Ctrl+C to stop.");
-console.log(`Checking processes every ${CHECK_INTERVAL_MS / 1000} seconds...`);
+simpleLogger.info("✅ Game watcher started. Press Ctrl+C to stop.");
+simpleLogger.info(`Checking processes every ${CHECK_INTERVAL_MS / 1000} seconds...`);
 setInterval(checkProcesses, CHECK_INTERVAL_MS);

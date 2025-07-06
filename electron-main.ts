@@ -1,3 +1,23 @@
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+// Determinar ambiente ANTES de carregar qualquer módulo
+const isDevelopment =
+  process.env.NODE_ENV === "development" ||
+  process.env.ELECTRON_IS_DEV === "true" ||
+  !process.env.NODE_ENV;
+
+const envFile = isDevelopment ? ".env.development" : ".env.production";
+
+// Carregar .env com path absoluto
+const envPath = path.resolve(__dirname, "..", envFile);
+const result = dotenv.config({ path: envPath });
+
+// Debug do carregamento do .env
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("Env file path:", envPath);
+console.log("Dotenv result:", result.error ? result.error.message : "Success");
+
 import {
   app,
   Tray,
@@ -7,7 +27,6 @@ import {
   nativeImage,
   ipcMain,
 } from "electron";
-import * as path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import AutoLaunch from "auto-launch";
@@ -15,6 +34,7 @@ import { GameWatcher, GameWatcherConfig } from "./core/gameWatcher.js";
 import { SettingsManager, AppSettings } from "./core/settingsManager.js";
 import { MouseController } from "./core/mouseController.js";
 import { BatteryInfo } from "./core/batteryMonitor.js";
+import { logInfo, logError, logDebug, logUI } from "./core/utils/logger.js";
 
 const execAsync = promisify(exec);
 
@@ -33,8 +53,8 @@ let currentStatus = {
   battery: {
     level: 0,
     isCharging: false,
-    isAvailable: false
-  }
+    isAvailable: false,
+  },
 };
 
 const WINDOW_FOCUS_RETRY_DELAY_MS = 200;
@@ -150,11 +170,11 @@ function updateStatus(
   rate: number,
   isAutoMode: boolean = true
 ) {
-  currentStatus = { 
-    isGameRunning, 
-    currentRate: rate, 
-    isAutoMode, 
-    battery: currentStatus.battery // Preserve existing battery info
+  currentStatus = {
+    isGameRunning,
+    currentRate: rate,
+    isAutoMode,
+    battery: currentStatus.battery, // Preserve existing battery info
   };
   updateTrayMenu();
 
@@ -286,9 +306,9 @@ async function createAdminAutoLaunch(): Promise<void> {
     // Create a scheduled task that runs at startup with highest privileges
     const command = `schtasks /create /tn "${appName}" /tr "\\"${appPath}\\"" /sc onlogon /rl highest /f`;
     await execAsync(command);
-    console.log("Admin auto-launch created successfully via Task Scheduler");
+    logInfo("Admin auto-launch created successfully via Task Scheduler");
   } catch (error) {
-    console.error("Failed to create admin auto-launch:", error);
+    logError("Failed to create admin auto-launch:", error);
     throw error;
   }
 }
@@ -299,9 +319,9 @@ async function removeAdminAutoLaunch(): Promise<void> {
   try {
     const command = `schtasks /delete /tn "${appName}" /f`;
     await execAsync(command);
-    console.log("Admin auto-launch removed successfully from Task Scheduler");
+    logInfo("Admin auto-launch removed successfully from Task Scheduler");
   } catch (error) {
-    console.error("Failed to remove admin auto-launch:", error);
+    logError("Failed to remove admin auto-launch:", error);
     throw error;
   }
 }
@@ -331,19 +351,19 @@ async function updateAutoLaunch(enabled: boolean) {
       }
     } else {
       // Use regular auto-launch for non-admin apps
-      console.log("Regular mode detected - using Registry for auto-launch");
+      logDebug("Regular mode detected - using Registry for auto-launch");
       const isEnabled = await autoLauncher.isEnabled();
 
       if (enabled && !isEnabled) {
         await autoLauncher.enable();
-        console.log("Regular auto-launch enabled");
+        logInfo("Regular auto-launch enabled");
       } else if (!enabled && isEnabled) {
         await autoLauncher.disable();
-        console.log("Regular auto-launch disabled");
+        logInfo("Regular auto-launch disabled");
       }
     }
   } catch (error) {
-    console.error("Error updating auto-launch:", error);
+    logError("Error updating auto-launch:", error);
     throw error;
   }
 }
@@ -378,22 +398,24 @@ ipcMain.handle("check-battery-support", async () => {
 });
 
 ipcMain.handle("start-battery-monitoring", async () => {
-  return await MouseController.startBatteryMonitoring((battery: BatteryInfo) => {
-    // Update global status with battery info
-    currentStatus.battery = {
-      level: battery.level,
-      isCharging: battery.isCharging,
-      isAvailable: battery.isAvailable
-    };
-    
-    // Update tray menu with new battery info
-    updateTrayMenu();
-    
-    // Send battery updates to renderer
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("battery-update", battery);
+  return await MouseController.startBatteryMonitoring(
+    (battery: BatteryInfo) => {
+      // Update global status with battery info
+      currentStatus.battery = {
+        level: battery.level,
+        isCharging: battery.isCharging,
+        isAvailable: battery.isAvailable,
+      };
+
+      // Update tray menu with new battery info
+      updateTrayMenu();
+
+      // Send battery updates to renderer
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("battery-update", battery);
+      }
     }
-  });
+  );
 });
 
 ipcMain.handle("get-current-battery", async () => {
@@ -540,39 +562,41 @@ app.whenReady().then(async () => {
 
   // Initialize game watcher with saved settings
   restartGameWatcher();
-  
+
   // Initialize battery monitoring
   try {
-    const batterySuccess = await MouseController.startBatteryMonitoring((battery: BatteryInfo) => {
-      // Update global status with battery info
-      currentStatus.battery = {
-        level: battery.level,
-        isCharging: battery.isCharging,
-        isAvailable: battery.isAvailable
-      };
-      
-      // Update tray menu with new battery info
-      updateTrayMenu();
-      
-      // Send battery updates to renderer if window exists
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("battery-update", battery);
+    const batterySuccess = await MouseController.startBatteryMonitoring(
+      (battery: BatteryInfo) => {
+        // Update global status with battery info
+        currentStatus.battery = {
+          level: battery.level,
+          isCharging: battery.isCharging,
+          isAvailable: battery.isAvailable,
+        };
+
+        // Update tray menu with new battery info
+        updateTrayMenu();
+
+        // Send battery updates to renderer if window exists
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("battery-update", battery);
+        }
       }
-    });
-    
+    );
+
     if (batterySuccess) {
-      console.log("✅ LAMZU battery monitoring started");
+      logInfo("✅ LAMZU battery monitoring started");
     } else {
-      console.log("⚠️ LAMZU battery monitoring not available");
+      logDebug("⚠️ LAMZU battery monitoring not available");
     }
   } catch (error) {
-    console.error("❌ Failed to start battery monitoring:", error);
+    logError("❌ Failed to start battery monitoring:", error);
   }
-  
+
   initializeAutoLaunch();
 
-  console.log("Lamzu Mouse Automator started in system tray");
-  console.log("Settings file:", settingsManager.getSettingsPath());
+  logInfo("Lamzu Mouse Automator started in system tray");
+  logDebug("Settings file:", settingsManager.getSettingsPath());
 
   if (settings.enableNotifications) {
     showNotification(

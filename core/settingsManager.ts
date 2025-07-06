@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { app } from "electron";
+import { logDebug, logError, logInfo } from "./utils/logger.js";
 
 export interface AppSettings {
   gamesList: string[];
@@ -62,7 +63,7 @@ export class SettingsManager {
         fs.mkdirSync(dirPath, { recursive: true });
       }
     } catch (error) {
-      console.error("Failed to create settings directory:", error);
+      logError("Failed to create settings directory:", error);
     }
   }
 
@@ -94,16 +95,16 @@ export class SettingsManager {
           settings.defaultPollingRate = this.defaultSettings.defaultPollingRate;
         }
 
-        console.log("Settings loaded from:", this.settingsPath);
+        logDebug("Settings loaded from:", this.settingsPath);
         return settings;
       } else {
-        console.log("No settings file found, using defaults");
+        logDebug("No settings file found, using defaults");
         // Save default settings to create the file
         this.saveSettingsToFile(this.defaultSettings);
         return { ...this.defaultSettings };
       }
     } catch (error) {
-      console.error("Failed to load settings, using defaults:", error);
+      logError("Failed to load settings, using defaults:", error);
       return { ...this.defaultSettings };
     }
   }
@@ -112,9 +113,9 @@ export class SettingsManager {
     try {
       const jsonString = JSON.stringify(settings, null, 2);
       fs.writeFileSync(this.settingsPath, jsonString, "utf-8");
-      console.log("Settings saved to:", this.settingsPath);
+      logDebug("Settings saved to:", this.settingsPath);
     } catch (error) {
-      console.error("Failed to save settings:", error);
+      logError("Failed to save settings:", error);
       throw error;
     }
   }
@@ -169,7 +170,7 @@ export class SettingsManager {
   public resetToDefaults(): AppSettings {
     this.currentSettings = { ...this.defaultSettings };
     this.saveSettingsToFile(this.currentSettings);
-    console.log("Settings reset to defaults");
+    logInfo("Settings reset to defaults");
     return this.getSettings();
   }
 
@@ -191,10 +192,10 @@ export class SettingsManager {
       };
       this.currentSettings = validatedSettings;
       this.saveSettingsToFile(this.currentSettings);
-      console.log("Settings imported successfully");
+      logInfo("Settings imported successfully");
       return this.getSettings();
     } catch (error) {
-      console.error("Failed to import settings:", error);
+      logError("Failed to import settings:", error);
       throw new Error("Invalid settings format");
     }
   }

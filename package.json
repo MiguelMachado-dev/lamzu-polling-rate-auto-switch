@@ -1,6 +1,6 @@
 {
   "name": "lamzu-automator",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Automatically adjusts mouse polling rate based on running applications",
   "main": "dist/electron-main.js",
   "homepage": "./",
@@ -8,15 +8,16 @@
   "license": "ISC",
   "type": "commonjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-logging": "npm run build && node dist/test-logging.js",
     "build": "tsc",
     "start": "npm run build && electron .",
     "start-cli": "npm run build && node dist/watcher.js",
-    "dev": "tsc --watch",
-    "build-electron": "npm run build && electron-builder",
-    "build-electron-win": "npm run build && electron-builder --win",
-    "dist": "npm run build && electron-builder --publish=never",
-    "pack": "npm run build && electron-builder --dir"
+    "dev": "cross-env NODE_ENV=development && tsc --watch",
+    "start-dev": "cross-env NODE_ENV=development && npm run build && electron .",
+    "build-electron": "cross-env NODE_ENV=production && npm run build && electron-builder",
+    "build-electron-win": "cross-env NODE_ENV=production && npm run build && electron-builder --win",
+    "dist": "cross-env NODE_ENV=production && npm run build && electron-builder --publish=never",
+    "pack": "cross-env NODE_ENV=production && npm run build && electron-builder --dir"
   },
   "build": {
     "appId": "com.lamzu.automator",
@@ -69,6 +70,7 @@
   },
   "dependencies": {
     "auto-launch": "^5.0.6",
+    "electron-log": "^5.4.1",
     "node-hid": "^3.2.0",
     "ps-list": "^8.1.1",
     "webhid": "^0.0.1-security"
@@ -76,6 +78,8 @@
   "devDependencies": {
     "@types/auto-launch": "^5.0.5",
     "@types/node": "^24.0.10",
+    "cross-env": "^7.0.3",
+    "dotenv": "^17.0.1",
     "electron": "^32.2.6",
     "electron-builder": "^26.0.12",
     "ts-node": "^10.9.2",

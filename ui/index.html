@@ -718,7 +718,11 @@
 
                 // Update checkbox to match actual status if different
                 if (checkbox.checked !== actualStatus) {
+                // Simple logging for UI - only in development
+                const isDev = process.env.NODE_ENV === 'development';
+                if (isDev) {
                     console.log(`Syncing auto-launch status: UI=${checkbox.checked}, Actual=${actualStatus}`);
+                }
                     checkbox.checked = actualStatus;
 
                     // Update settings to match actual status

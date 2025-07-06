@@ -1,4 +1,5 @@
 import { HID, devices, Device } from "node-hid";
+import { simpleLogger } from "./core/utils/simpleLogger.js";
 
 const VENDOR_ID = 14142;
 const PRODUCT_ID = 30;
@@ -47,23 +48,23 @@ function setPollingRate(rate: string | number) {
     command[7 + 1] = rateValue;
 
     device.sendFeatureReport(command);
-    console.log(
+    simpleLogger.polling(
       `Command sent to set Polling Rate to ${rate}Hz (value: ${rateValue}).`
     );
   } catch (err) {
-    console.error("An error occurred:", err);
+    simpleLogger.error("An error occurred:", err);
   } finally {
     if (device) {
       device.close();
-      console.log("Connection closed.");
+      simpleLogger.debug("Connection closed.");
     }
   }
 }
 
 const args = process.argv.slice(2);
 if (args.length === 0) {
-  console.log("Usage: node dist/set-rate.js <rate>");
-  console.log("Example: node dist/set-rate.js 8000");
+  simpleLogger.info("Usage: node dist/set-rate.js <rate>");
+  simpleLogger.info("Example: node dist/set-rate.js 8000");
 } else {
   setPollingRate(args[0]);
 }

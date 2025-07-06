@@ -1,4 +1,5 @@
 import { HID, devices, Device } from "node-hid";
+import { logBattery, logError, logDebug } from "./utils/logger.js";
 
 export interface BatteryInfo {
   level: number; // 0-100 percentage
@@ -36,12 +37,12 @@ export class BatteryMonitor {
       );
 
       if (!deviceInfo || !deviceInfo.path) {
-        console.log("Battery monitoring: LAMZU Interface 2 not found");
+        logBattery("Battery monitoring: LAMZU Interface 2 not found");
         return false;
       }
 
       this.device = new HID(deviceInfo.path);
-      console.log("✅ Connected to LAMZU Interface 2 for battery monitoring");
+      logBattery("✅ Connected to LAMZU Interface 2 for battery monitoring");
 
       // Test the LAMZU battery command immediately
       const batteryInfo = await this.requestLamzuBatteryInfo();
@@ -57,11 +58,11 @@ export class BatteryMonitor {
         }
       }, 1800000); // 30 minutes = 30 * 60 * 1000 = 1,800,000ms
 
-      console.log("🔋 LAMZU battery monitoring started successfully");
+      logBattery("🔋 LAMZU battery monitoring started successfully");
       return true;
 
     } catch (error) {
-      console.error("Failed to start LAMZU battery monitoring:", error);
+      logError("Failed to start LAMZU battery monitoring:", error);
       return false;
     }
   }
@@ -76,7 +77,7 @@ export class BatteryMonitor {
       try {
         this.device.close();
       } catch (error) {
-        console.error("Error closing battery monitor device:", error);
+        logError("Error closing battery monitor device:", error);
       }
       this.device = null;
     }
@@ -170,7 +171,7 @@ export class BatteryMonitor {
       return this.parseLamzuBatteryResponse(responseBuffer);
       
     } catch (error) {
-      console.error("Error requesting LAMZU battery info:", error);
+      logError("Error requesting LAMZU battery info:", error);
       return { level: 0, isCharging: false, isLow: false, isAvailable: false };
     }
   }
@@ -188,7 +189,7 @@ export class BatteryMonitor {
       const batteryStatus = response[7];  // Status/charging info
       const batteryLevel = response[8];   // Actual battery percentage!
       
-      console.log(`🔋 LAMZU Pattern 1: Battery ${batteryLevel}%, Status ${batteryStatus}`);
+      logBattery(`🔋 LAMZU Pattern 1: Battery ${batteryLevel}%, Status ${batteryStatus}`);
       
       return {
         level: Math.min(100, Math.max(0, batteryLevel)),
@@ -203,7 +204,7 @@ export class BatteryMonitor {
       const batteryStatus = response[6];  // Status/charging info
       const batteryLevel = response[7];   // Actual battery percentage!
       
-      console.log(`🔋 LAMZU Pattern 2: Battery ${batteryLevel}%, Status ${batteryStatus}`);
+      logBattery(`🔋 LAMZU Pattern 2: Battery ${batteryLevel}%, Status ${batteryStatus}`);
       
       return {
         level: Math.min(100, Math.max(0, batteryLevel)),
@@ -213,7 +214,7 @@ export class BatteryMonitor {
       };
     }
 
-    console.log("🔋 LAMZU battery patterns not matched");
+    logBattery("🔋 LAMZU battery patterns not matched");
     return { level: 0, isCharging: false, isLow: false, isAvailable: false };
   }
 
@@ -248,11 +249,11 @@ export class BatteryMonitor {
   async discoverBatteryPattern(): Promise<void> {
     if (!this.device) return;
 
-    console.log("Starting battery pattern discovery...");
-    console.log("Move your mouse and watch for patterns in the data:");
+    logBattery("Starting battery pattern discovery...");
+    logBattery("Move your mouse and watch for patterns in the data:");
 
     this.device.on("data", (data: Buffer) => {
-      console.log(`Data [${data.length}]:`, data.toString('hex'));
+      logBattery(`Data [${data.length}]:`, data.toString('hex'));
     });
 
     // Try all possible feature report IDs
@@ -260,7 +261,7 @@ export class BatteryMonitor {
       try {
         const response = this.device.getFeatureReport(reportId, 32);
         if (response && response.length > 1) {
-          console.log(`Feature Report ${reportId}:`, Buffer.from(response).toString('hex'));
+          logBattery(`Feature Report ${reportId}:`, Buffer.from(response).toString('hex'));
         }
       } catch (error) {
         // Ignore unsupported report IDs
