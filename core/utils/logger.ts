@@ -33,16 +33,18 @@ export class Logger {
             this.electronLog.transports.file.resolvePathFn = () => path.join(process.cwd(), 'logs', 'lamzu-automator.log');
         }
         
-        // Set log levels
+        // Set log levels and console output
         if (this.isDevelopment) {
             this.electronLog.transports.file.level = 'debug';
             this.electronLog.transports.console.level = 'debug';
+            console.log('[Logger] Development mode - electron-log handling all output');
         } else {
             this.electronLog.transports.file.level = 'info';
-            this.electronLog.transports.console.level = false; // Disable console in production
+            this.electronLog.transports.console.level = false; // No console in production
+            console.log('[Logger] Production mode - file logging only');
         }
 
-        // Format configuration
+        // Format configuration - electron-log will handle [LEVEL] prefixes
         this.electronLog.transports.file.format = '{y}-{m}-{d} {h}:{i}:{s}.{ms} [{level}] {text}';
         this.electronLog.transports.console.format = '[{level}] {text}';
         
@@ -57,32 +59,25 @@ export class Logger {
         };
     }
 
-    // Development-only console logging
-    public console(level: 'debug' | 'info' | 'warn' | 'error', message: string, ...args: any[]): void {
-        if (this.enableConsole) {
-            console[level === 'debug' ? 'log' : level](message, ...args);
-        }
-    }
-
-    // File + conditional console logging
+    // Unified logging method - NO MORE DUPLICATES
     public debug(message: string, ...args: any[]): void {
         this.electronLog.debug(message, ...args);
-        this.console('debug', `[DEBUG] ${message}`, ...args);
+        // electron-log handles console output in development automatically
     }
 
     public info(message: string, ...args: any[]): void {
         this.electronLog.info(message, ...args);
-        this.console('info', `[INFO] ${message}`, ...args);
+        // electron-log handles console output in development automatically
     }
 
     public warn(message: string, ...args: any[]): void {
         this.electronLog.warn(message, ...args);
-        this.console('warn', `[WARN] ${message}`, ...args);
+        // electron-log handles console output in development automatically
     }
 
     public error(message: string, error?: any, ...args: any[]): void {
         this.electronLog.error(message, error, ...args);
-        this.console('error', `[ERROR] ${message}`, error, ...args);
+        // electron-log handles console output in development automatically
     }
 
     // Special methods for specific components
@@ -109,6 +104,7 @@ export class Logger {
     // Configuration methods
     public setConsoleEnabled(enabled: boolean): void {
         this.enableConsole = enabled;
+        this.electronLog.transports.console.level = enabled ? 'debug' : false;
     }
 
     public isConsoleEnabled(): boolean {

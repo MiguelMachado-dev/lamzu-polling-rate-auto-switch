@@ -13,10 +13,7 @@ const envFile = isDevelopment ? ".env.development" : ".env.production";
 const envPath = path.resolve(__dirname, "..", envFile);
 const result = dotenv.config({ path: envPath });
 
-// Debug do carregamento do .env
-console.log("NODE_ENV:", process.env.NODE_ENV);
-console.log("Env file path:", envPath);
-console.log("Dotenv result:", result.error ? result.error.message : "Success");
+// Environment debug will be handled by logger later
 
 import {
   app,

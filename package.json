@@ -1,6 +1,6 @@
 {
   "name": "lamzu-automator",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Automatically adjusts mouse polling rate based on running applications",
   "main": "dist/electron-main.js",
   "homepage": "./",
@@ -70,6 +70,7 @@
   },
   "dependencies": {
     "auto-launch": "^5.0.6",
+    "dotenv": "^17.0.1",
     "electron-log": "^5.4.1",
     "node-hid": "^3.2.0",
     "ps-list": "^8.1.1",
@@ -79,7 +80,6 @@
     "@types/auto-launch": "^5.0.5",
     "@types/node": "^24.0.10",
     "cross-env": "^7.0.3",
-    "dotenv": "^17.0.1",
     "electron": "^32.2.6",
     "electron-builder": "^26.0.12",
     "ts-node": "^10.9.2",
