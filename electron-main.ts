@@ -30,6 +30,8 @@ let currentStatus = {
   isAutoMode: true,
 };
 
+const WINDOW_FOCUS_RETRY_DELAY_MS = 200;
+
 function createTrayIcon() {
   try {
     const iconPath = path.join(__dirname, "../assets/icon.png");
@@ -170,7 +172,7 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false,
     },
-    show: !settings.startMinimized,
+    show: false, // Always start hidden, then show conditionally
     autoHideMenuBar: true,
   });
 
@@ -186,6 +188,7 @@ function createWindow() {
   mainWindow.once("ready-to-show", () => {
     if (!settings.startMinimized) {
       mainWindow?.show();
+      mainWindow?.focus();
     }
     // Send initial data to renderer
     mainWindow?.webContents.send("status-update", currentStatus);
@@ -521,27 +524,38 @@ app.on("activate", () => {
 
 function showAndFocusWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
+    // Force the window to show regardless of current state
     if (mainWindow.isMinimized()) {
       mainWindow.restore();
     }
-    
+
+    // Ensure window is visible
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+
+    // Call show() again to ensure it's actually visible
     mainWindow.show();
     mainWindow.focus();
-    
+
     // Force window to foreground on Windows
-    if (process.platform === 'win32') {
+    if (process.platform === "win32") {
       mainWindow.setAlwaysOnTop(true);
-      mainWindow.setAlwaysOnTop(false);
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.setAlwaysOnTop(false);
+        }
+      }, 100);
       mainWindow.moveTop();
     }
-    
+
     // Additional focus attempts for stubborn windows
     setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.focus();
         mainWindow.flashFrame(true);
       }
-    }, 100);
+    }, WINDOW_FOCUS_RETRY_DELAY_MS);
   } else {
     createWindow();
   }
