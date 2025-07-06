@@ -1,6 +1,6 @@
 {
   "name": "lamzu-automator",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Automatically adjusts mouse polling rate based on running applications",
   "main": "dist/electron-main.js",
   "homepage": "./",

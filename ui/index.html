@@ -379,10 +379,11 @@
 
         // Listen for updates from main process
         ipcRenderer.on('status-update', (event, status) => {
+            console.log('Status update received:', status);
             updateStatusDisplay(status);
         });
 
-        ipcRenderer.on('settings-update', (event, settings) => {
+                ipcRenderer.on('settings-update', (event, settings) => {
             currentSettings = settings;
             loadSettingsToUI(settings);
         });
@@ -438,7 +439,7 @@
                 batteryText.textContent = 'Battery info not available (wired or unsupported)';
                 batteryCharging.style.display = 'none';
                 batteryDisplay.classList.add('battery-not-available');
-                
+
                 // Clear any fill in battery bar
                 const existingFill = batteryBar.querySelector('.fill');
                 if (existingFill) {
@@ -449,7 +450,7 @@
 
             batteryDisplay.classList.remove('battery-not-available');
             batteryLevel.textContent = '';
-            
+
             // Update battery bar fill
             let existingFill = batteryBar.querySelector('.fill');
             if (!existingFill) {
@@ -457,9 +458,9 @@
                 existingFill.className = 'fill';
                 batteryBar.appendChild(existingFill);
             }
-            
+
             existingFill.style.width = `${battery.level}%`;
-            
+
             // Color coding based on battery level
             if (battery.level <= 15) {
                 existingFill.className = 'fill battery-critical';
@@ -471,7 +472,7 @@
                 existingFill.className = 'fill battery-good';
                 batteryDisplay.classList.remove('battery-low');
             }
-            
+
             // Update text and charging indicator
             if (battery.isCharging) {
                 batteryText.textContent = `Charging: ${battery.level}%`;
@@ -490,17 +491,16 @@
             document.getElementById('gameRate').value = settings.gamePollingRate;
             document.getElementById('normalRate').value = settings.defaultPollingRate;
             document.getElementById('checkInterval').value = settings.checkIntervalMs;
-            document.getElementById('enableNotifications').checked = settings.enableNotifications;
-            document.getElementById('startMinimized').checked = settings.startMinimized;
-            document.getElementById('startWithWindows').checked = settings.startWithWindows;
+
+            // Update checkboxes to match settings
+            document.getElementById('enableNotifications').checked = Boolean(settings.enableNotifications);
+            document.getElementById('startMinimized').checked = Boolean(settings.startMinimized);
+            document.getElementById('startWithWindows').checked = Boolean(settings.startWithWindows);
 
             updateGamesList(settings.gamesList);
 
             // Check admin status and show warning if needed
             checkAdminStatus();
-
-            // Sync auto-launch status with Windows
-            syncAutoLaunchStatus();
         }
 
         // Function to check admin status and show appropriate warnings
@@ -551,27 +551,24 @@
             });
         }
 
-        async function addGame() {
+        function addGame() {
             const input = document.getElementById('newGame');
             const newGame = input.value.trim();
 
             if (newGame && !currentSettings.gamesList.includes(newGame)) {
-                try {
-                    await ipcRenderer.invoke('add-game', newGame);
-                    input.value = '';
-                } catch (error) {
-                    console.error('Failed to add game:', error);
-                    alert('Failed to add game');
-                }
+                // Add to currentSettings and update UI - save only when user clicks "Save all settings"
+                currentSettings.gamesList.push(newGame);
+                updateGamesList(currentSettings.gamesList);
+                input.value = '';
             }
         }
 
-        async function removeGame(gameName) {
-            try {
-                await ipcRenderer.invoke('remove-game', gameName);
-            } catch (error) {
-                console.error('Failed to remove game:', error);
-                alert('Failed to remove game');
+        function removeGame(gameName) {
+            // Remove from currentSettings and update UI - save only when user clicks "Save all settings"
+            const index = currentSettings.gamesList.indexOf(gameName);
+            if (index > -1) {
+                currentSettings.gamesList.splice(index, 1);
+                updateGamesList(currentSettings.gamesList);
             }
         }
 
@@ -630,20 +627,19 @@
 
         async function saveAllSettings() {
             try {
-                const startWithWindows = document.getElementById('startWithWindows').checked;
-
                 const newSettings = {
+                    gamesList: [...currentSettings.gamesList], // Include games list
                     gamePollingRate: parseInt(document.getElementById('gameRate').value),
                     defaultPollingRate: parseInt(document.getElementById('normalRate').value),
                     checkIntervalMs: parseInt(document.getElementById('checkInterval').value),
                     enableNotifications: document.getElementById('enableNotifications').checked,
                     startMinimized: document.getElementById('startMinimized').checked,
-                    startWithWindows: startWithWindows
+                    startWithWindows: document.getElementById('startWithWindows').checked
                 };
 
-                // Handle auto-launch setting separately
-                if (startWithWindows !== currentSettings.startWithWindows) {
-                    const autoLaunchResult = await ipcRenderer.invoke('set-auto-launch', startWithWindows);
+                // Handle auto-launch setting if it changed
+                if (newSettings.startWithWindows !== currentSettings.startWithWindows) {
+                    const autoLaunchResult = await ipcRenderer.invoke('set-auto-launch', newSettings.startWithWindows);
                     if (!autoLaunchResult.success) {
                         alert('❌ Failed to update startup setting: ' + autoLaunchResult.error);
                         return;
@@ -710,30 +706,6 @@
             }
         }
 
-        // Function to sync UI with actual auto-launch status
-        async function syncAutoLaunchStatus() {
-            try {
-                const actualStatus = await ipcRenderer.invoke('get-auto-launch-status');
-                const checkbox = document.getElementById('startWithWindows');
-
-                // Update checkbox to match actual status if different
-                if (checkbox.checked !== actualStatus) {
-                // Simple logging for UI - only in development
-                const isDev = process.env.NODE_ENV === 'development';
-                if (isDev) {
-                    console.log(`Syncing auto-launch status: UI=${checkbox.checked}, Actual=${actualStatus}`);
-                }
-                    checkbox.checked = actualStatus;
-
-                    // Update settings to match actual status
-                    const newSettings = { startWithWindows: actualStatus };
-                    await ipcRenderer.invoke('update-settings', newSettings);
-                }
-            } catch (error) {
-                console.error('Failed to sync auto-launch status:', error);
-            }
-        }
-
         // Add Enter key support for adding games
         document.addEventListener('DOMContentLoaded', () => {
             initializeUI();
@@ -744,34 +716,39 @@
                 }
             });
 
-            // Handle immediate auto-launch toggle
+            // Keep currentSettings in sync with UI state - save only when user clicks "Save all settings"
+            document.getElementById('enableNotifications').addEventListener('change', (e) => {
+                if (currentSettings) {
+                    currentSettings.enableNotifications = e.target.checked;
+                }
+            });
+
+            document.getElementById('startMinimized').addEventListener('change', (e) => {
+                if (currentSettings) {
+                    currentSettings.startMinimized = e.target.checked;
+                }
+            });
+
+            // Handle startWithWindows checkbox - just update UI state, save only when user clicks "Save all settings"
             document.getElementById('startWithWindows').addEventListener('change', async (e) => {
                 const enabled = e.target.checked;
                 const warning = document.getElementById('adminWarning');
 
-                try {
-                    const result = await ipcRenderer.invoke('set-auto-launch', enabled);
-                    if (!result.success) {
-                        // Revert checkbox if failed
-                        e.target.checked = !enabled;
-                        alert('❌ Failed to update startup setting: ' + result.error);
-                        return;
-                    }
+                // Update currentSettings to reflect the current UI state
+                if (currentSettings) {
+                    currentSettings.startWithWindows = enabled;
+                }
 
-                    // Update warning visibility based on checkbox state and admin status
+                // Update warning visibility based on checkbox state and admin status
+                try {
                     const isAdmin = await ipcRenderer.invoke('check-admin-status');
                     if (!isAdmin && enabled) {
                         warning.classList.add('show');
                     } else if (!isAdmin && !enabled) {
                         warning.classList.remove('show');
                     }
-                    // For admin users, warning is always shown when admin detected
-
                 } catch (error) {
-                    console.error('Failed to toggle auto-launch:', error);
-                    // Revert checkbox if failed
-                    e.target.checked = !enabled;
-                    alert('❌ Failed to update startup setting');
+                    console.error('Failed to check admin status:', error);
                 }
             });
         });

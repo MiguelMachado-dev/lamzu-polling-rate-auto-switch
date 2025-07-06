@@ -230,9 +230,14 @@ function createWindow() {
       mainWindow?.show();
       mainWindow?.focus();
     }
+    
+    // Force reload current settings from file
+    const currentSettings = settingsManager.getSettings();
+    logDebug("Sending initial settings to renderer:", JSON.stringify(currentSettings, null, 2));
+    
     // Send initial data to renderer
     mainWindow?.webContents.send("status-update", currentStatus);
-    mainWindow?.webContents.send("settings-update", settings);
+    mainWindow?.webContents.send("settings-update", currentSettings);
   });
 }
 
@@ -422,6 +427,8 @@ ipcMain.handle("get-current-battery", async () => {
 ipcMain.handle(
   "update-settings",
   async (event, newSettings: Partial<AppSettings>) => {
+    logDebug("🔧 IPC update-settings called with:", JSON.stringify(newSettings, null, 2));
+    
     const updatedSettings = settingsManager.updateSettings(newSettings);
 
     // Restart game watcher if game-related settings changed
@@ -436,6 +443,7 @@ ipcMain.handle(
 
     // Send updated settings to renderer
     if (mainWindow && !mainWindow.isDestroyed()) {
+      logDebug("📤 Sending settings-update to renderer:", JSON.stringify(updatedSettings, null, 2));
       mainWindow.webContents.send("settings-update", updatedSettings);
     }
 

@@ -125,8 +125,13 @@ export class SettingsManager {
   }
 
   public updateSettings(newSettings: Partial<AppSettings>): AppSettings {
+    logDebug("📝 updateSettings called with:", JSON.stringify(newSettings, null, 2));
+    logDebug("📋 Current settings before update:", JSON.stringify(this.currentSettings, null, 2));
+    
     // Merge new settings with current settings
     this.currentSettings = { ...this.currentSettings, ...newSettings };
+
+    logDebug("✅ Settings after merge:", JSON.stringify(this.currentSettings, null, 2));
 
     // Save to file
     this.saveSettingsToFile(this.currentSettings);
