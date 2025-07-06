@@ -147,6 +147,82 @@
             color: #666;
             font-size: 11px;
         }
+        .battery-display {
+            padding: 15px;
+            border-radius: 6px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        .battery-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .battery-icon {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+            position: relative;
+        }
+        .battery-bar {
+            width: 50px;
+            height: 25px;
+            border: 2px solid #333;
+            border-radius: 3px;
+            position: relative;
+            background: #f0f0f0;
+            margin-right: 10px;
+        }
+        .battery-bar::after {
+            content: '';
+            position: absolute;
+            right: -6px;
+            top: 6px;
+            width: 4px;
+            height: 13px;
+            background: #333;
+            border-radius: 0 2px 2px 0;
+        }
+        .battery-bar .fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            border-radius: 1px;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+        .battery-details {
+            flex: 1;
+        }
+        .charging-indicator {
+            color: #28a745;
+            font-weight: bold;
+            animation: pulse 1.5s infinite;
+        }
+        .battery-low {
+            animation: blink 1s infinite;
+        }
+        .battery-critical {
+            background-color: #dc3545 !important;
+        }
+        .battery-low-bg {
+            background-color: #ffc107 !important;
+        }
+        .battery-good {
+            background-color: #28a745 !important;
+        }
+        .battery-not-available {
+            opacity: 0.5;
+            color: #666;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
     </style>
 </head>
 <body>
@@ -171,6 +247,22 @@
                 </div>
                 <div class="control-group">
                     <button id="autoModeBtn" onclick="toggleAutoMode()">Toggle Auto Mode</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🔋 Battery Status</h3>
+            <div id="batteryStatus" class="battery-display">
+                <div class="battery-info">
+                    <div class="battery-icon">
+                        <div id="batteryBar" class="battery-bar"></div>
+                        <span id="batteryLevel">--</span>
+                    </div>
+                    <div class="battery-details">
+                        <div id="batteryText">Checking battery...</div>
+                        <div id="batteryCharging" class="charging-indicator" style="display: none;">⚡ Charging</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -265,6 +357,7 @@
         const { ipcRenderer } = require('electron');
 
         let currentSettings = null;
+        let batteryInfo = null;
 
         // Initialize UI
         async function initializeUI() {
@@ -272,6 +365,9 @@
                 currentSettings = await ipcRenderer.invoke('get-settings');
                 loadSettingsToUI(currentSettings);
                 updateStatus();
+
+                // Initialize battery monitoring
+                await initializeBatteryMonitoring();
 
                 // Get settings file path
                 const settingsPath = await ipcRenderer.invoke('get-settings-path');
@@ -290,6 +386,105 @@
             currentSettings = settings;
             loadSettingsToUI(settings);
         });
+
+        // Listen for battery updates
+        ipcRenderer.on('battery-update', (event, battery) => {
+            batteryInfo = battery;
+            updateBatteryDisplay(battery);
+        });
+
+        // Initialize battery monitoring
+        async function initializeBatteryMonitoring() {
+            try {
+                const isSupported = await ipcRenderer.invoke('check-battery-support');
+                if (isSupported) {
+                    const success = await ipcRenderer.invoke('start-battery-monitoring');
+                    if (!success) {
+                        updateBatteryDisplay({
+                            level: 0,
+                            isCharging: false,
+                            isLow: false,
+                            isAvailable: false
+                        });
+                    }
+                } else {
+                    updateBatteryDisplay({
+                        level: 0,
+                        isCharging: false,
+                        isLow: false,
+                        isAvailable: false
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to initialize battery monitoring:', error);
+                updateBatteryDisplay({
+                    level: 0,
+                    isCharging: false,
+                    isLow: false,
+                    isAvailable: false
+                });
+            }
+        }
+
+        function updateBatteryDisplay(battery) {
+            const batteryBar = document.getElementById('batteryBar');
+            const batteryLevel = document.getElementById('batteryLevel');
+            const batteryText = document.getElementById('batteryText');
+            const batteryCharging = document.getElementById('batteryCharging');
+            const batteryDisplay = document.querySelector('.battery-display');
+
+            if (!battery.isAvailable) {
+                batteryLevel.textContent = '--';
+                batteryText.textContent = 'Battery info not available (wired or unsupported)';
+                batteryCharging.style.display = 'none';
+                batteryDisplay.classList.add('battery-not-available');
+                
+                // Clear any fill in battery bar
+                const existingFill = batteryBar.querySelector('.fill');
+                if (existingFill) {
+                    existingFill.remove();
+                }
+                return;
+            }
+
+            batteryDisplay.classList.remove('battery-not-available');
+            batteryLevel.textContent = '';
+            
+            // Update battery bar fill
+            let existingFill = batteryBar.querySelector('.fill');
+            if (!existingFill) {
+                existingFill = document.createElement('div');
+                existingFill.className = 'fill';
+                batteryBar.appendChild(existingFill);
+            }
+            
+            existingFill.style.width = `${battery.level}%`;
+            
+            // Color coding based on battery level
+            if (battery.level <= 15) {
+                existingFill.className = 'fill battery-critical';
+                batteryDisplay.classList.add('battery-low');
+            } else if (battery.level <= 30) {
+                existingFill.className = 'fill battery-low-bg';
+                batteryDisplay.classList.remove('battery-low');
+            } else {
+                existingFill.className = 'fill battery-good';
+                batteryDisplay.classList.remove('battery-low');
+            }
+            
+            // Update text and charging indicator
+            if (battery.isCharging) {
+                batteryText.textContent = `Charging: ${battery.level}%`;
+                batteryCharging.style.display = 'block';
+            } else {
+                if (battery.isLow) {
+                    batteryText.textContent = `Battery Low: ${battery.level}%`;
+                } else {
+                    batteryText.textContent = `Battery: ${battery.level}%`;
+                }
+                batteryCharging.style.display = 'none';
+            }
+        }
 
         function loadSettingsToUI(settings) {
             document.getElementById('gameRate').value = settings.gamePollingRate;

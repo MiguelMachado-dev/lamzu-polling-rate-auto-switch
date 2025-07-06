@@ -13,6 +13,8 @@ import { promisify } from "util";
 import AutoLaunch from "auto-launch";
 import { GameWatcher, GameWatcherConfig } from "./core/gameWatcher.js";
 import { SettingsManager, AppSettings } from "./core/settingsManager.js";
+import { MouseController } from "./core/mouseController.js";
+import { BatteryInfo } from "./core/batteryMonitor.js";
 
 const execAsync = promisify(exec);
 
@@ -28,6 +30,11 @@ let currentStatus = {
   isGameRunning: false,
   currentRate: 1000,
   isAutoMode: true,
+  battery: {
+    level: 0,
+    isCharging: false,
+    isAvailable: false
+  }
 };
 
 const WINDOW_FOCUS_RETRY_DELAY_MS = 200;
@@ -65,16 +72,27 @@ function createTray() {
 }
 
 function updateTrayMenu() {
-  const { isGameRunning, currentRate, isAutoMode } = currentStatus;
+  const { isGameRunning, currentRate, isAutoMode, battery } = currentStatus;
   const modeText = isAutoMode
     ? isGameRunning
       ? "Gaming"
       : "Normal"
     : "Manual";
 
+  // Format battery info for display
+  let batteryText = "Battery: Not Available";
+  if (battery.isAvailable) {
+    const chargingIndicator = battery.isCharging ? " ⚡" : "";
+    batteryText = `Battery: ${battery.level}%${chargingIndicator}`;
+  }
+
   const contextMenu = Menu.buildFromTemplate([
     {
       label: `Status: ${modeText} Mode (${currentRate}Hz)`,
+      enabled: false,
+    },
+    {
+      label: batteryText,
       enabled: false,
     },
     { type: "separator" },
@@ -132,7 +150,12 @@ function updateStatus(
   rate: number,
   isAutoMode: boolean = true
 ) {
-  currentStatus = { isGameRunning, currentRate: rate, isAutoMode };
+  currentStatus = { 
+    isGameRunning, 
+    currentRate: rate, 
+    isAutoMode, 
+    battery: currentStatus.battery // Preserve existing battery info
+  };
   updateTrayMenu();
 
   // Send status update to renderer if window exists
@@ -349,6 +372,34 @@ ipcMain.handle("get-settings", () => {
   return settingsManager.getSettings();
 });
 
+// Battery monitoring IPC handlers
+ipcMain.handle("check-battery-support", async () => {
+  return await MouseController.checkBatterySupport();
+});
+
+ipcMain.handle("start-battery-monitoring", async () => {
+  return await MouseController.startBatteryMonitoring((battery: BatteryInfo) => {
+    // Update global status with battery info
+    currentStatus.battery = {
+      level: battery.level,
+      isCharging: battery.isCharging,
+      isAvailable: battery.isAvailable
+    };
+    
+    // Update tray menu with new battery info
+    updateTrayMenu();
+    
+    // Send battery updates to renderer
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("battery-update", battery);
+    }
+  });
+});
+
+ipcMain.handle("get-current-battery", async () => {
+  return await MouseController.getCurrentBatteryInfo();
+});
+
 ipcMain.handle(
   "update-settings",
   async (event, newSettings: Partial<AppSettings>) => {
@@ -489,6 +540,35 @@ app.whenReady().then(async () => {
 
   // Initialize game watcher with saved settings
   restartGameWatcher();
+  
+  // Initialize battery monitoring
+  try {
+    const batterySuccess = await MouseController.startBatteryMonitoring((battery: BatteryInfo) => {
+      // Update global status with battery info
+      currentStatus.battery = {
+        level: battery.level,
+        isCharging: battery.isCharging,
+        isAvailable: battery.isAvailable
+      };
+      
+      // Update tray menu with new battery info
+      updateTrayMenu();
+      
+      // Send battery updates to renderer if window exists
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("battery-update", battery);
+      }
+    });
+    
+    if (batterySuccess) {
+      console.log("✅ LAMZU battery monitoring started");
+    } else {
+      console.log("⚠️ LAMZU battery monitoring not available");
+    }
+  } catch (error) {
+    console.error("❌ Failed to start battery monitoring:", error);
+  }
+  
   initializeAutoLaunch();
 
   console.log("Lamzu Mouse Automator started in system tray");
@@ -514,6 +594,7 @@ app.on("before-quit", () => {
   if (gameWatcher) {
     gameWatcher.stop();
   }
+  MouseController.stopBatteryMonitoring(); // Cleanup battery monitoring
 });
 
 app.on("activate", () => {
