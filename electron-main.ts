@@ -8,13 +8,20 @@ import {
   ipcMain,
 } from "electron";
 import * as path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
+import AutoLaunch from "auto-launch";
 import { GameWatcher, GameWatcherConfig } from "./core/gameWatcher.js";
 import { SettingsManager, AppSettings } from "./core/settingsManager.js";
+
+const execAsync = promisify(exec);
 
 let tray: Tray | null = null;
 let mainWindow: BrowserWindow | null = null;
 let gameWatcher: GameWatcher;
 let settingsManager: SettingsManager;
+let autoLauncher: AutoLaunch;
+let isQuitting = false;
 
 // Current status state
 let currentStatus = {
@@ -40,12 +47,18 @@ function createTray() {
 
   tray.setToolTip("Lamzu Mouse Automator");
 
-  tray.on("double-click", () => {
-    if (mainWindow) {
-      mainWindow.show();
+  // Single click to show/hide window
+  tray.on("click", () => {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+      mainWindow.hide();
     } else {
-      createWindow();
+      showAndFocusWindow();
     }
+  });
+
+  // Double click to show window (for consistency)
+  tray.on("double-click", () => {
+    showAndFocusWindow();
   });
 }
 
@@ -96,16 +109,13 @@ function updateTrayMenu() {
     {
       label: "Settings",
       click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-        } else {
-          createWindow();
-        }
+        showAndFocusWindow();
       },
     },
     {
       label: "Quit",
       click: () => {
+        isQuitting = true;
         gameWatcher.stop();
         app.quit();
       },
@@ -167,8 +177,10 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, "../ui/index.html"));
 
   mainWindow.on("close", (event) => {
-    event.preventDefault();
-    mainWindow?.hide();
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow?.hide();
+    }
   });
 
   mainWindow.once("ready-to-show", () => {
@@ -219,6 +231,110 @@ function restartGameWatcher() {
   });
 
   gameWatcher.start();
+}
+
+// Auto-launch functionality
+function initializeAutoLaunch() {
+  autoLauncher = new AutoLaunch({
+    name: "Lamzu Mouse Automator",
+    path: app.getPath("exe"),
+    isHidden: true, // Start minimized
+  });
+}
+
+async function isRunningAsAdmin(): Promise<boolean> {
+  try {
+    // Try to access a system resource that requires admin rights
+    await execAsync("net session");
+    return true; // If no error, running as admin
+  } catch {
+    return false; // Error means not admin
+  }
+}
+
+async function createAdminAutoLaunch(): Promise<void> {
+  const appPath = process.execPath;
+  const appName = "Lamzu Mouse Automator";
+
+  try {
+    // Create a scheduled task that runs at startup with highest privileges
+    const command = `schtasks /create /tn "${appName}" /tr "\\"${appPath}\\"" /sc onlogon /rl highest /f`;
+    await execAsync(command);
+    console.log("Admin auto-launch created successfully via Task Scheduler");
+  } catch (error) {
+    console.error("Failed to create admin auto-launch:", error);
+    throw error;
+  }
+}
+
+async function removeAdminAutoLaunch(): Promise<void> {
+  const appName = "Lamzu Mouse Automator";
+
+  try {
+    const command = `schtasks /delete /tn "${appName}" /f`;
+    await execAsync(command);
+    console.log("Admin auto-launch removed successfully from Task Scheduler");
+  } catch (error) {
+    console.error("Failed to remove admin auto-launch:", error);
+    throw error;
+  }
+}
+
+async function checkAdminAutoLaunchExists(): Promise<boolean> {
+  const appName = "Lamzu Mouse Automator";
+
+  try {
+    const { stdout } = await execAsync(`schtasks /query /tn "${appName}"`);
+    return stdout.includes(appName);
+  } catch {
+    return false;
+  }
+}
+
+async function updateAutoLaunch(enabled: boolean) {
+  try {
+    const isAdmin = await isRunningAsAdmin();
+
+    if (isAdmin) {
+      // Use Task Scheduler for admin apps
+      console.log("Admin mode detected - using Task Scheduler for auto-launch");
+      if (enabled) {
+        await createAdminAutoLaunch();
+      } else {
+        await removeAdminAutoLaunch();
+      }
+    } else {
+      // Use regular auto-launch for non-admin apps
+      console.log("Regular mode detected - using Registry for auto-launch");
+      const isEnabled = await autoLauncher.isEnabled();
+
+      if (enabled && !isEnabled) {
+        await autoLauncher.enable();
+        console.log("Regular auto-launch enabled");
+      } else if (!enabled && isEnabled) {
+        await autoLauncher.disable();
+        console.log("Regular auto-launch disabled");
+      }
+    }
+  } catch (error) {
+    console.error("Error updating auto-launch:", error);
+    throw error;
+  }
+}
+
+async function getAutoLaunchStatus(): Promise<boolean> {
+  try {
+    const isAdmin = await isRunningAsAdmin();
+
+    if (isAdmin) {
+      return await checkAdminAutoLaunchExists();
+    } else {
+      return await autoLauncher.isEnabled();
+    }
+  } catch (error) {
+    console.error("Error getting auto-launch status:", error);
+    return false;
+  }
 }
 
 // IPC handlers
@@ -319,10 +435,49 @@ ipcMain.handle("toggle-auto-mode", () => {
   return currentStatus;
 });
 
+ipcMain.handle("get-auto-launch-status", async () => {
+  return await getAutoLaunchStatus();
+});
+
+ipcMain.handle("set-auto-launch", async (event, enabled: boolean) => {
+  try {
+    await updateAutoLaunch(enabled);
+
+    // Update the setting in settings manager
+    const updatedSettings = settingsManager.updateSettings({
+      startWithWindows: enabled,
+    });
+
+    // Send updated settings to renderer
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("settings-update", updatedSettings);
+    }
+
+    return { success: true, enabled };
+  } catch (error) {
+    console.error("Failed to update auto-launch:", error);
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+ipcMain.handle("check-admin-status", async () => {
+  return await isRunningAsAdmin();
+});
+
 app.whenReady().then(async () => {
   // Initialize settings manager
   settingsManager = SettingsManager.getInstance();
   const settings = settingsManager.getSettings();
+
+  // Initialize auto-launch
+  initializeAutoLaunch();
+
+  // Sync auto-launch with settings
+  try {
+    await updateAutoLaunch(settings.startWithWindows);
+  } catch (error) {
+    console.error("Failed to sync auto-launch setting:", error);
+  }
 
   createTray();
 
@@ -331,6 +486,7 @@ app.whenReady().then(async () => {
 
   // Initialize game watcher with saved settings
   restartGameWatcher();
+  initializeAutoLaunch();
 
   console.log("Lamzu Mouse Automator started in system tray");
   console.log("Settings file:", settingsManager.getSettingsPath());
@@ -344,10 +500,14 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  // Prevent app from quitting when all windows are closed (keep running in tray)
+  // Only quit if we're actually trying to quit
+  if (isQuitting) {
+    app.quit();
+  }
 });
 
 app.on("before-quit", () => {
+  isQuitting = true;
   if (gameWatcher) {
     gameWatcher.stop();
   }
@@ -358,3 +518,31 @@ app.on("activate", () => {
     createWindow();
   }
 });
+
+function showAndFocusWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    
+    mainWindow.show();
+    mainWindow.focus();
+    
+    // Force window to foreground on Windows
+    if (process.platform === 'win32') {
+      mainWindow.setAlwaysOnTop(true);
+      mainWindow.setAlwaysOnTop(false);
+      mainWindow.moveTop();
+    }
+    
+    // Additional focus attempts for stubborn windows
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.focus();
+        mainWindow.flashFrame(true);
+      }
+    }, 100);
+  } else {
+    createWindow();
+  }
+}

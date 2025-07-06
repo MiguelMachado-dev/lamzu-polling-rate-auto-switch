@@ -9,6 +9,7 @@ export interface AppSettings {
   checkIntervalMs: number;
   enableNotifications: boolean;
   startMinimized: boolean;
+  startWithWindows: boolean;
   mouseConfig: {
     vendorId: number;
     productId: number;
@@ -28,6 +29,7 @@ export class SettingsManager {
     checkIntervalMs: 5000,
     enableNotifications: true,
     startMinimized: false,
+    startWithWindows: false,
     mouseConfig: {
       vendorId: 14142,
       productId: 30,

@@ -122,16 +122,30 @@
             width: auto;
             margin-right: 8px;
         }
-        .export-import {
-            margin-top: 15px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 6px;
+        .admin-warning {
+            font-size: 12px;
+            color: #ff6b35;
+            margin-top: 5px;
+            margin-left: 24px;
+            padding: 8px;
+            background-color: rgba(255, 107, 53, 0.1);
+            border-radius: 4px;
+            border-left: 3px solid #ff6b35;
+            display: none;
         }
         textarea {
             width: 100%;
             height: 100px;
             resize: vertical;
+        }
+        .admin-warning.show {
+            display: block;
+        }
+        .startup-status {
+            margin-left: 24px;
+            margin-top: 5px;
+            color: #666;
+            font-size: 11px;
         }
     </style>
 </head>
@@ -214,6 +228,16 @@
                 <input type="checkbox" id="startMinimized">
                 <label for="startMinimized">Start minimized to tray</label>
             </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="startWithWindows">
+                <label for="startWithWindows">Start with Windows</label>
+            </div>
+            <div id="adminWarning" class="admin-warning">
+                ⚠️ This app requires admin rights. You'll see a UAC prompt on Windows startup.
+            </div>
+            <div id="startupStatus" class="startup-status">
+                <small>Startup method: <span id="startupMethod">Loading...</span></small>
+            </div>
         </div>
 
         <div class="section">
@@ -273,8 +297,48 @@
             document.getElementById('checkInterval').value = settings.checkIntervalMs;
             document.getElementById('enableNotifications').checked = settings.enableNotifications;
             document.getElementById('startMinimized').checked = settings.startMinimized;
+            document.getElementById('startWithWindows').checked = settings.startWithWindows;
 
             updateGamesList(settings.gamesList);
+
+            // Check admin status and show warning if needed
+            checkAdminStatus();
+
+            // Sync auto-launch status with Windows
+            syncAutoLaunchStatus();
+        }
+
+        // Function to check admin status and show appropriate warnings
+        async function checkAdminStatus() {
+            try {
+                const isAdmin = await ipcRenderer.invoke('check-admin-status');
+                const warning = document.getElementById('adminWarning');
+                const startWithWindowsCheckbox = document.getElementById('startWithWindows');
+                const startupMethodSpan = document.getElementById('startupMethod');
+
+                if (isAdmin) {
+                    warning.textContent = '⚠️ Running as admin - startup will require UAC approval each time';
+                    warning.classList.add('show');
+                    startupMethodSpan.textContent = 'Task Scheduler (Admin)';
+                    startupMethodSpan.style.color = '#ff6b35';
+                } else {
+                    warning.textContent = '⚠️ This app requires admin rights. You\'ll see a UAC prompt on Windows startup.';
+                    startupMethodSpan.textContent = 'Windows Registry (Standard)';
+                    startupMethodSpan.style.color = '#28a745';
+
+                    // Only show warning if startWithWindows is checked and not admin
+                    if (startWithWindowsCheckbox.checked) {
+                        warning.classList.add('show');
+                    } else {
+                        warning.classList.remove('show');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check admin status:', error);
+                const startupMethodSpan = document.getElementById('startupMethod');
+                startupMethodSpan.textContent = 'Error checking status';
+                startupMethodSpan.style.color = '#dc3545';
+            }
         }
 
         function updateGamesList(gamesList) {
@@ -371,13 +435,25 @@
 
         async function saveAllSettings() {
             try {
+                const startWithWindows = document.getElementById('startWithWindows').checked;
+
                 const newSettings = {
                     gamePollingRate: parseInt(document.getElementById('gameRate').value),
                     defaultPollingRate: parseInt(document.getElementById('normalRate').value),
                     checkIntervalMs: parseInt(document.getElementById('checkInterval').value),
                     enableNotifications: document.getElementById('enableNotifications').checked,
-                    startMinimized: document.getElementById('startMinimized').checked
+                    startMinimized: document.getElementById('startMinimized').checked,
+                    startWithWindows: startWithWindows
                 };
+
+                // Handle auto-launch setting separately
+                if (startWithWindows !== currentSettings.startWithWindows) {
+                    const autoLaunchResult = await ipcRenderer.invoke('set-auto-launch', startWithWindows);
+                    if (!autoLaunchResult.success) {
+                        alert('❌ Failed to update startup setting: ' + autoLaunchResult.error);
+                        return;
+                    }
+                }
 
                 await ipcRenderer.invoke('update-settings', newSettings);
                 alert('✅ Settings saved successfully!');
@@ -439,6 +515,26 @@
             }
         }
 
+        // Function to sync UI with actual auto-launch status
+        async function syncAutoLaunchStatus() {
+            try {
+                const actualStatus = await ipcRenderer.invoke('get-auto-launch-status');
+                const checkbox = document.getElementById('startWithWindows');
+
+                // Update checkbox to match actual status if different
+                if (checkbox.checked !== actualStatus) {
+                    console.log(`Syncing auto-launch status: UI=${checkbox.checked}, Actual=${actualStatus}`);
+                    checkbox.checked = actualStatus;
+
+                    // Update settings to match actual status
+                    const newSettings = { startWithWindows: actualStatus };
+                    await ipcRenderer.invoke('update-settings', newSettings);
+                }
+            } catch (error) {
+                console.error('Failed to sync auto-launch status:', error);
+            }
+        }
+
         // Add Enter key support for adding games
         document.addEventListener('DOMContentLoaded', () => {
             initializeUI();
@@ -446,6 +542,37 @@
             document.getElementById('newGame').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     addGame();
+                }
+            });
+
+            // Handle immediate auto-launch toggle
+            document.getElementById('startWithWindows').addEventListener('change', async (e) => {
+                const enabled = e.target.checked;
+                const warning = document.getElementById('adminWarning');
+
+                try {
+                    const result = await ipcRenderer.invoke('set-auto-launch', enabled);
+                    if (!result.success) {
+                        // Revert checkbox if failed
+                        e.target.checked = !enabled;
+                        alert('❌ Failed to update startup setting: ' + result.error);
+                        return;
+                    }
+
+                    // Update warning visibility based on checkbox state and admin status
+                    const isAdmin = await ipcRenderer.invoke('check-admin-status');
+                    if (!isAdmin && enabled) {
+                        warning.classList.add('show');
+                    } else if (!isAdmin && !enabled) {
+                        warning.classList.remove('show');
+                    }
+                    // For admin users, warning is always shown when admin detected
+
+                } catch (error) {
+                    console.error('Failed to toggle auto-launch:', error);
+                    // Revert checkbox if failed
+                    e.target.checked = !enabled;
+                    alert('❌ Failed to update startup setting');
                 }
             });
         });
