@@ -17,49 +17,98 @@ const POLLING_RATE_MAP: { [key: string]: number } = {
 export class MouseController {
   private static batteryMonitor: BatteryMonitor | null = null;
   private static onBatteryChange?: (battery: BatteryInfo) => void;
-  static setPollingRate(rate: string | number): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      const rateValue = POLLING_RATE_MAP[rate.toString()];
-      if (rateValue === undefined) {
-        reject(new Error(`Invalid Polling Rate: ${rate}`));
-        return;
-      }
-
-      let device: HID | null = null;
+  private static deviceConnection: HID | null = null;
+  private static devicePath: string | null = null;
+  private static lastConnectionTime = 0;
+  private static readonly CONNECTION_TIMEOUT_MS = 30000; // 30 seconds
+  private static async getDeviceConnection(): Promise<HID | null> {
+    const now = Date.now();
+    
+    // Check if existing connection is still valid
+    if (this.deviceConnection && this.devicePath && 
+        (now - this.lastConnectionTime) < this.CONNECTION_TIMEOUT_MS) {
       try {
-        const deviceInfo = devices().find(
-          (d: Device) =>
-            d.vendorId === VENDOR_ID &&
-            d.productId === PRODUCT_ID &&
-            d.interface === INTERFACE_NUMBER
-        );
-
-        if (!deviceInfo || !deviceInfo.path) {
-          throw new Error("Device not found.");
+        // Test if connection is still alive by checking device info
+        const deviceInfo = devices().find(d => d.path === this.devicePath);
+        if (deviceInfo) {
+          return this.deviceConnection;
         }
-
-        device = new HID(deviceInfo.path);
-
-        const command = new Array(65).fill(0);
-        command[0] = 0x00;
-        command[2 + 1] = 0x02;
-        command[3 + 1] = 0x02;
-        command[4 + 1] = 0x01;
-        command[5 + 1] = 0x00;
-        command[6 + 1] = 1;
-        command[7 + 1] = rateValue;
-
-        device.sendFeatureReport(command);
-        logPolling(`Polling Rate set to ${rate}Hz`);
-        resolve(true);
-      } catch (err) {
-        reject(err);
-      } finally {
-        if (device) {
-          device.close();
-        }
+      } catch (error) {
+        // Connection is stale, will reconnect below
       }
-    });
+    }
+
+    // Close stale connection
+    this.closeDeviceConnection();
+
+    // Find and connect to device
+    try {
+      const deviceInfo = devices().find(
+        (d: Device) =>
+          d.vendorId === VENDOR_ID &&
+          d.productId === PRODUCT_ID &&
+          d.interface === INTERFACE_NUMBER
+      );
+
+      if (!deviceInfo || !deviceInfo.path) {
+        logError("LAMZU device not found");
+        return null;
+      }
+
+      this.deviceConnection = new HID(deviceInfo.path);
+      this.devicePath = deviceInfo.path;
+      this.lastConnectionTime = now;
+      
+      logHID(`Connected to LAMZU device: ${this.devicePath}`);
+      return this.deviceConnection;
+    } catch (error) {
+      logError("Failed to connect to LAMZU device:", error);
+      this.closeDeviceConnection();
+      return null;
+    }
+  }
+
+  private static closeDeviceConnection() {
+    if (this.deviceConnection) {
+      try {
+        this.deviceConnection.close();
+      } catch (error) {
+        // Ignore errors when closing
+      }
+      this.deviceConnection = null;
+      this.devicePath = null;
+    }
+  }
+
+  static async setPollingRate(rate: string | number): Promise<boolean> {
+    const rateValue = POLLING_RATE_MAP[rate.toString()];
+    if (rateValue === undefined) {
+      throw new Error(`Invalid Polling Rate: ${rate}`);
+    }
+
+    try {
+      const device = await this.getDeviceConnection();
+      if (!device) {
+        throw new Error("Device not found.");
+      }
+
+      const command = new Array(65).fill(0);
+      command[0] = 0x00;
+      command[2 + 1] = 0x02;
+      command[3 + 1] = 0x02;
+      command[4 + 1] = 0x01;
+      command[5 + 1] = 0x00;
+      command[6 + 1] = 1;
+      command[7 + 1] = rateValue;
+
+      device.sendFeatureReport(command);
+      logPolling(`Polling Rate set to ${rate}Hz`);
+      return true;
+    } catch (err) {
+      logError("Error setting polling rate:", err);
+      this.closeDeviceConnection(); // Close connection on error to force reconnect
+      throw err;
+    }
   }
 
   static async startBatteryMonitoring(
@@ -101,6 +150,11 @@ export class MouseController {
       this.batteryMonitor.stopMonitoring();
       this.batteryMonitor = null;
     }
+  }
+
+  static cleanup() {
+    this.stopBatteryMonitoring();
+    this.closeDeviceConnection();
   }
 
   static async getCurrentBatteryInfo(): Promise<BatteryInfo | null> {

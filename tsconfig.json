@@ -11,8 +11,12 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "declaration": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "removeComments": true,
+    "noEmitOnError": true,
+    "importHelpers": false,
+    "experimentalDecorators": false
   },
   "include": ["*.ts", "core/**/*"],
-  "exclude": ["node_modules", "dist", "dist-electron"]
+  "exclude": ["node_modules", "dist", "dist-electron", "**/*.test.ts", "**/*.spec.ts"]
 }

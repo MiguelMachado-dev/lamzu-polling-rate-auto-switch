@@ -623,7 +623,7 @@ app.on("before-quit", () => {
   if (gameWatcher) {
     gameWatcher.stop();
   }
-  MouseController.stopBatteryMonitoring(); // Cleanup battery monitoring
+  MouseController.cleanup(); // Cleanup all MouseController resources
 });
 
 app.on("activate", () => {
